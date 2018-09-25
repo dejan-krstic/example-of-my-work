@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import AppLoader from '../shared-components/app-loader/app-loader.js';
-import { store, service, getDeviceClass, getStyle, element, elementid, editor } from './aps-element.js';
+import { store, service, localize, getDeviceClass, getStyle, element, elementid, editor } from './app-element.js';
 
 export default class APPLocationMap extends Component {
 
@@ -15,7 +15,7 @@ export default class APPLocationMap extends Component {
     window.__initGoogleMapsCallbacks = window.__initGoogleMapsCallbacks || [];          // Pushing dataChanged functions from all app-locationmap components 
     window.__initGoogleMapsCallbacks.push(() => this.dataChanged(this.props.data));    // into array that will be executed once google maps script is loaded
     if (window.__initGoogleMaps) {
-      return;
+      return;    
     }
     window.__initGoogleMaps = () => {
       window.__googleMapsLoaded = true;                  // once script is loaded window.__googleMapsLoaded ensures that dataChanged 
@@ -38,7 +38,7 @@ export default class APPLocationMap extends Component {
     if (this._setElementDataHandle) {
       clearTimeout(this._setElementDataHandle);
     }
-    this._setElementDataHandle = setTimeout(() => this.setElementData(marker), 0, marker);
+    this._setElementDataHandle = setTimeout(this.setElementData.bind(this), 0, marker);  // could also use arrow function instead of bind
   }
 
   setElementData(marker) {
@@ -48,8 +48,8 @@ export default class APPLocationMap extends Component {
     const locations = [...this.props.data.locations]
       , latitude = marker.getPosition().lat()
       , longitude = marker.getPosition().lng()
-      , index = locations.findIndex(location => !this.markers.find(marker =>     // finding the location which marker has been moved 
-        location.latitude - marker.getPosition().lat() < 0.0001 && location.longitude - marker.getPosition().lng() < 0.001));   // back-end didn't provide with any location id
+      , index = locations.findIndex(location => !this.markers.find(marker =>                                                     // finding the location which marker has been moved 
+        location.latitude - marker.getPosition().lat() < 0.0001 && location.longitude - marker.getPosition().lng() < 0.0001));   // back-end didn't provide with any location id
       if (index === -1 || (locations[index].latitude === latitude && locations[index].longitude === longitude)) {
       return;
     }
@@ -68,15 +68,15 @@ export default class APPLocationMap extends Component {
     });
     store.dispatch({
       type: 'SET_ELEMENT',
-      data: {...element, { data: {...this.props.data, { locations } } } }
+      data: {...element, ...{ data: {...this.props.data, locations } } }
     });
-    service('data.updateElement', { 
+    service('data.updateElement', {  
       elementid: elementid,
       data: this.props.data
     });
   }
 
-  geocodeMarkerPosition(lat, lng) {
+  geocodeMarkerPosition(lat, lng) {   // geocoding marker position to display address in parent component form
     if (!this.geocoder) {
       this.geocoder = new google.maps.Geocoder;
     }
@@ -86,12 +86,12 @@ export default class APPLocationMap extends Component {
     }, (response, status) => {
       if (response && status === 'OK') {
         var street_number = (response[0].address_components.find(e => e.types.includes('street_number')) || {}).short_name;
-        var address = ((response[0].address_components.find(e => e.types.includes('route') || response[0].address_components.find(e => e.types.includes('neighborhood')) || {}).long_name || '') + (street_number ? ', ' + street_number : '');
+        var address = ((response[0].address_components.find(e => e.types.includes('route') || response[0].address_components.find(e => e.types.includes('neighborhood')) || {}).long_name || '') + street_number ? ', ' + street_number : '');
         location.address =  address || null;
         location.locality = response[0].address_components.find(e => e.types.includes('locality') || response[0].address_components.find(e => e.types.includes('administrative_area_level_3')) || {}).long_name || null;
-        location.administrativeArea =  response[0].address_components.find(e => e.types.includes('administrative_area_level_2')) || {}).short_name || null;
-        location.country = response[0].address_components.find(e => e.types.includes('country')) || {}).short_name || null;
-        location.postalCode = response[0].address_components.find(e => e.types.includes('postal_code')) || {}).short_name || null;
+        location.administrativeArea =  (response[0].address_components.find(e => e.types.includes('administrative_area_level_2')) || {}).short_name || null;
+        location.country = (response[0].address_components.find(e => e.types.includes('country')) || {}).short_name || null;
+        location.postalCode = (response[0].address_components.find(e => e.types.includes('postal_code')) || {}).short_name || null;
         
         store.dispatch({
           type: 'SET_LOCATION',
@@ -133,7 +133,7 @@ export default class APPLocationMap extends Component {
       this.markers = [];
       data.locations.map(location => {
         let newMarker = new google.maps.Marker({
-          icon: 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi.png',  // Safary v11 has bug  with importing dynamic icons 
+          icon: 'https://maps.gstatic.com/mapfiles/api-3/images/spotlight-poi.png',  // Safary 11 has bug with importing dynamic icons
           map: this.googleMap,
           draggable: this.isDragable(location),
           position: { lat: location.latitude, lng: location.longitude },
